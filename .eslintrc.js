@@ -13,6 +13,7 @@ Happy linting! 💖
 */
 module.exports = {
     "env": {
+        "Deno": true,
         "ES2021": true
     },
     "extends": [
