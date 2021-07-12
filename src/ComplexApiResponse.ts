@@ -11,12 +11,6 @@ export class BasicResponse {
 
 export const EMPTY_BODY = "";
 
-export interface ApiResponse<T> {
-  body: T;
-  status: HttpStatus;
-  responseObject: Response;
-}
-
 // Union of HttpStatus enum keys, restricted to strings only
 type StatusKeyType = EnumKeyTypes<typeof HttpStatus>
 
@@ -96,13 +90,7 @@ export class ComplexApiResponse<
     const typedBody = responseObject.body as InTypes<BodyTypeMapIn>[keyof InTypes<BodyTypeMapIn>];
 
     if (statusName in conversionHandlerMap) {
-      // Cast statusName to any to appease the type checker. HandlerMap keys are always strings (HttpStatus
-      // names in this case), however the compiler tries to give an error because "conversionHandlerMap
-      // cannot be indexed by statusName because it is not of type 'number'." I think this is because technically
-      // none of the HttpStatus keys have to be present in the conversionHandlerMap, and Typescript is just
-      // giving an odd error for the situation. Not sure though. However, indexing with this 'statusName' string
-      // key works at runtime.
-      this._body = conversionHandlerMap[statusName as any](typedBody) as UseTypes<BodyTypeMapIn>;
+      this._body = conversionHandlerMap[statusName as keyof ResponseConversionHandlerMap<BodyTypeMapIn>](typedBody) as UseTypes<BodyTypeMapIn>;
     }
     else {
       throw TypeError(`Unhandled HTTP response with status ${statusName} (${this.status}) when constructing the complex response.`)
@@ -115,8 +103,7 @@ export class ComplexApiResponse<
     const statusName: EnumKeyTypes<typeof HttpStatus> = getEnumKey(HttpStatus, this.status);
 
     if (statusName in bodyHandlerMap) {
-      // Casted to any for the same reason as above.
-      bodyHandlerMap[statusName as any](this._body);
+      bodyHandlerMap[statusName as keyof ResponseConversionHandlerMap<BodyTypeMapIn>](this._body);
     }
     else {
       // This shouldn't ever be able to happen. The TypeScript Compiler ensures that every status defined in
