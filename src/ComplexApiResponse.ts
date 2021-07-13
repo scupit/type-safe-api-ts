@@ -65,12 +65,31 @@ type ResponseConversionHandlerMap<
 
 type BodyHandlerFunctionMap<
   T extends ApiStatusMap,
-  BodyTypeMap extends FinalApiStatusMap<T> = FinalApiStatusMap<T>
+  ReturnType,
+  BodyTypeMap extends FinalApiStatusMap<T> = FinalApiStatusMap<T>,
 > = {
-  [key in keyof BodyTypeMap]: BodyTypeMap[key] extends ApiDataStates<infer InType, infer UseType>
-    ? (body: UseType) => void
+  [key in keyof BodyTypeMap]: BodyTypeMap[key] extends ApiDataStates<infer _, infer UseType>
+    ? (body: UseType) => ReturnType
     : never;
 };
+
+type InferredHandlerReturnTypeMap<
+  StatusMap extends ApiStatusMap,
+  HandlerMap extends BodyHandlerFunctionMap<StatusMap, unknown>,
+  ReturnType
+> = {
+  [key in keyof HandlerMap]: HandlerMap[key] extends ((body: infer T) => infer R)
+    ? ReturnType extends unknown
+      ? R
+      : ReturnType
+    : never
+};
+
+type InferredHandlerReturnTypeUnion<
+  StatusMap extends ApiStatusMap,
+  HandlerMap extends BodyHandlerFunctionMap<StatusMap, unknown>,
+  ReturnType
+> = InferredHandlerReturnTypeMap<StatusMap, HandlerMap, ReturnType>[keyof InferredHandlerReturnTypeMap<StatusMap, HandlerMap, ReturnType>];
 
 export class ComplexApiResponse<
   BodyTypeMapIn extends ApiStatusMap
@@ -97,13 +116,16 @@ export class ComplexApiResponse<
     }
   }
 
-  matchStatus(
-    bodyHandlerMap: BodyHandlerFunctionMap<BodyTypeMapIn>
-  ): void {
+  matchStatus<
+    ReturnType,
+    HandlerMap extends BodyHandlerFunctionMap<BodyTypeMapIn, ReturnType>,
+  >(
+    bodyHandlerMap: HandlerMap
+  ): InferredHandlerReturnTypeUnion<BodyTypeMapIn, HandlerMap, ReturnType> {
     const statusName: EnumKeyTypes<typeof HttpStatus> = getEnumKey(HttpStatus, this.status);
 
     if (statusName in bodyHandlerMap) {
-      bodyHandlerMap[statusName as keyof ResponseConversionHandlerMap<BodyTypeMapIn>](this._body);
+      return bodyHandlerMap[statusName as keyof HandlerMap](this._body) as InferredHandlerReturnTypeUnion<BodyTypeMapIn, HandlerMap, ReturnType>;
     }
     else {
       // This shouldn't ever be able to happen. The TypeScript Compiler ensures that every status defined in
